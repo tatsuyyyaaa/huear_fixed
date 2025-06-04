@@ -1,13 +1,27 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"> <uses-permission android:name="android.permission.CAMERA" />
 
-    <!-- Add these permissions here, right after the <manifest> line and before <application> -->
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
+    <!--
+        Permissions for external storage.
+        photo_manager plugin might declare these with a higher maxSdkVersion.
+        We add tools:replace to resolve conflicts and use our specified maxSdkVersion.
+        maxSdkVersion 28 is for older Android versions where direct external storage access was common.
+        For Android 10 (API 29) and above, Scoped Storage is enforced, and direct access is limited.
+        photo_manager handles modern storage APIs internally, so setting maxSdkVersion here
+        prevents issues on newer devices while maintaining compatibility with older ones
+        if your app's logic still relies on it.
+    -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" tools:replace="android:maxSdkVersion" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="28" tools:replace="android:maxSdkVersion" />
+
+    <uses-feature android:name="android.hardware.camera" android:required="true" />
+    <uses-feature android:name="android.hardware.camera.autofocus" android:required="true" />
 
     <application
         android:label="HueAR"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -20,7 +34,7 @@
             <meta-data
               android:name="io.flutter.embedding.android.NormalTheme"
               android:resource="@style/NormalTheme"
-            />
+              />
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
@@ -30,6 +44,7 @@
             android:name="flutterEmbedding"
             android:value="2" />
     </application>
+
     <queries>
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>

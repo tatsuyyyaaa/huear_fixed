@@ -1,219 +1,128 @@
+// ignore_for_file: use_build_context_synchronously
+
 import 'package:flutter/material.dart';
-import 'package:photo_manager/photo_manager.dart';
-import 'dart:typed_data';
-import 'dart:math';
+import 'dart:io';
+import 'package:google_fonts/google_fonts.dart'; // Import GoogleFonts
 
 class GalleryScreen extends StatefulWidget {
-  const GalleryScreen({super.key});
+  final List<String> capturedImages;
+  final Function(int) onImageDeleted;
+
+  const GalleryScreen({
+    super.key,
+    required this.capturedImages,
+    required this.onImageDeleted,
+  });
 
   @override
   State<GalleryScreen> createState() => _GalleryScreenState();
 }
 
-class _DateSection {
-  final String label;
-  final List<AssetEntity> assets;
-  _DateSection(this.label, this.assets);
-}
-
 class _GalleryScreenState extends State<GalleryScreen> {
-  List<AssetEntity> _mediaList = [];
-  bool _isLoading = true;
-  List<_DateSection> _sections = [];
-
-  @override
-  void initState() {
-    super.initState();
-    _loadGallery();
-  }
-
-  Future<void> _loadGallery() async {
-    final permission = await PhotoManager.requestPermissionExtend();
-
-    if (!permission.isAuth) {
-      await PhotoManager.openSetting();
-      return;
-    }
-
-    final albums = await PhotoManager.getAssetPathList(
-      type: RequestType.image,
-      onlyAll: true,
-      filterOption: FilterOptionGroup(
-        orders: [
-          const OrderOption(type: OrderOptionType.createDate, asc: false),
-        ],
-      ),
-    );
-
-    if (albums.isNotEmpty) {
-      final recentAlbum = albums.first;
-      final media = await recentAlbum.getAssetListPaged(page: 0, size: 100);
-
-      setState(() {
-        _mediaList = media;
-        _isLoading = false;
-        _sections = _buildSections(media);
-      });
-    }
-  }
-
-  List<_DateSection> _buildSections(List<AssetEntity> assets) {
-    Map<String, List<AssetEntity>> sectionMap = {};
-    List<String> order = [];
-
-    for (final asset in assets) {
-      final dt = asset.createDateTime;
-      final now = DateTime.now();
-      final today = DateTime(now.year, now.month, now.day);
-      final assetDay = DateTime(dt.year, dt.month, dt.day);
-
-      String label;
-      final difference = today.difference(assetDay).inDays;
-      if (difference == 0) {
-        label = "Today";
-      } else if (difference == 1) {
-        label = "1 day ago";
-      } else {
-        label = "$difference days ago";
-      }
-
-      if (!sectionMap.containsKey(label)) {
-        sectionMap[label] = [];
-        order.add(label);
-      }
-      sectionMap[label]!.add(asset);
-    }
-
-    return order.map((label) => _DateSection(label, sectionMap[label]!)).toList();
-  }
-
-  Future<Widget> _buildThumbnail(AssetEntity asset) async {
-    final Uint8List? thumbData = await asset.thumbnailDataWithSize(const ThumbnailSize(200, 200));
-    if (thumbData == null) return const SizedBox();
-    return Image.memory(thumbData, fit: BoxFit.cover);
-  }
-
-  // Delete photo by index in section (recomputes sections after)
-  Future<void> _deletePhoto(_DateSection section, int sectionIndex, int indexWithinSection) async {
-    final entity = section.assets[indexWithinSection];
-    final result = await PhotoManager.editor.deleteWithIds([entity.id]);
-    if (result.isNotEmpty) {
-      setState(() {
-        _mediaList.remove(entity);
-        _sections = _buildSections(_mediaList);
-      });
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.white,
-        title: const Text(
+        title: Text(
           'Gallery',
-          style: TextStyle(
-              color: Colors.black,
-              fontWeight: FontWeight.bold,
-              fontSize: 22
+          style: GoogleFonts.inter( // Use GoogleFonts for a modern look
+            color: Colors.black,
+            fontWeight: FontWeight.bold,
+            fontSize: 22,
           ),
         ),
         centerTitle: true,
-        elevation: 1,
+        elevation: 2, // Add a subtle shadow
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _sections.isEmpty
-              ? const Center(child: Text("No photos found"))
-              : ListView.builder(
-                  padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 0),
-                  itemCount: _sections.length,
-                  itemBuilder: (context, sectionIndex) {
-                    final section = _sections[sectionIndex];
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-                          child: Text(
-                            section.label,
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black87,
-                            ),
-                          ),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 8),
-                          child: GridView.builder(
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 3,
-                              crossAxisSpacing: 4,
-                              mainAxisSpacing: 4,
-                            ),
-                            itemCount: section.assets.length,
-                            itemBuilder: (context, idx) {
-                              return FutureBuilder<Widget>(
-                                future: _buildThumbnail(section.assets[idx]),
-                                builder: (context, snapshot) {
-                                  if (snapshot.connectionState == ConnectionState.done && snapshot.hasData) {
-                                    return GestureDetector(
-                                      onTap: () async {
-                                        // Find global index for deletion
-                                        final deleted = await Navigator.push<bool>(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder: (_) => FullScreenPhotoScreen(
-                                              mediaList: _mediaList,
-                                              initialIndex: _mediaList.indexOf(section.assets[idx]),
-                                              onDelete: (deleteIndex) async {
-                                                // Find which section this index is in now
-                                                final asset = _mediaList[deleteIndex];
-                                                for (final sec in _sections) {
-                                                  final localIdx = sec.assets.indexOf(asset);
-                                                  if (localIdx != -1) {
-                                                    await _deletePhoto(sec, _sections.indexOf(sec), localIdx);
-                                                    break;
-                                                  }
-                                                }
-                                              },
-                                            ),
-                                          ),
-                                        );
-                                        if (deleted == true) {
-                                          _loadGallery();
-                                        }
-                                      },
-                                      child: snapshot.data!,
-                                    );
-                                  } else {
-                                    return const Center(child: CircularProgressIndicator());
-                                  }
-                                },
-                              );
-                            },
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                      ],
-                    );
-                  },
-                ),
+      body: widget.capturedImages.isEmpty
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.photo_library,
+                    size: 80,
+                    color: Colors.grey[300], // Lighter grey for empty state icon
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    "No photos yet",
+                    style: GoogleFonts.inter(fontSize: 18, color: Colors.grey[600]), // Consistent font and color
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    "Capture some moments with HueAR!",
+                    style: GoogleFonts.inter(fontSize: 14, color: Colors.grey[500]),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            )
+          : GridView.builder(
+              padding: const EdgeInsets.all(8),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 3,
+                crossAxisSpacing: 8, // Increased spacing for better visual separation
+                mainAxisSpacing: 8, // Increased spacing
+              ),
+              itemCount: widget.capturedImages.length,
+              itemBuilder: (context, index) {
+                final imagePath = widget.capturedImages[index];
+                return GestureDetector(
+                  onTap: () => _showFullScreen(context, index, imagePath),
+                  child: Card( // Wrap image in a Card for elevation and rounded corners
+                    elevation: 2, // Subtle shadow for each image card
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8), // Rounded corners for image cards
+                    ),
+                    clipBehavior: Clip.antiAlias, // Ensures image respects card's border radius
+                    child: Image.file(
+                      File(imagePath),
+                      fit: BoxFit.cover, // Cover to fill the grid tile
+                      errorBuilder: (context, error, stackTrace) =>
+                          const Center(child: Icon(Icons.broken_image, size: 40, color: Colors.grey)), // Error placeholder
+                    ),
+                  ),
+                );
+              },
+            ),
     );
+  }
+
+  void _showFullScreen(BuildContext context, int index, String imagePath) async {
+    // Pass the entire list of image paths and the initial index
+    final bool? deleted = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => FullScreenPhotoScreen(
+          imagePaths: widget.capturedImages,
+          initialIndex: index,
+          onDelete: (deleteIndex) {
+            // This callback is triggered from FullScreenPhotoScreen
+            // It modifies the original list via the parent's callback
+            widget.onImageDeleted(deleteIndex);
+            // No need for setState here, as the Navigator.pop will trigger rebuild
+          },
+        ),
+      ),
+    );
+
+    // If an image was deleted and we returned to this screen, rebuild the grid.
+    if (deleted == true) {
+      setState(() {});
+    }
   }
 }
 
 class FullScreenPhotoScreen extends StatefulWidget {
-  final List<AssetEntity> mediaList;
+  final List<String> imagePaths;
   final int initialIndex;
-  final Future<void> Function(int) onDelete;
+  final Function(int) onDelete; // Callback to notify parent of deletion
 
   const FullScreenPhotoScreen({
     super.key,
-    required this.mediaList,
+    required this.imagePaths,
     required this.initialIndex,
     required this.onDelete,
   });
@@ -225,55 +134,86 @@ class FullScreenPhotoScreen extends StatefulWidget {
 class _FullScreenPhotoScreenState extends State<FullScreenPhotoScreen> {
   late PageController _pageController;
   late int _currentIndex;
-  late List<AssetEntity> _photos;
 
   @override
   void initState() {
     super.initState();
-    _photos = List<AssetEntity>.from(widget.mediaList); // Defensive copy
     _currentIndex = widget.initialIndex;
     _pageController = PageController(initialPage: _currentIndex);
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
   }
 
   Future<void> _deleteCurrentPhoto() async {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text("Delete Photo"),
-        content: const Text("Are you sure you want to delete this photo?"),
+        title: Text(
+          "Delete Photo",
+          style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: Colors.black87),
+        ),
+        content: Text(
+          "Are you sure you want to delete this photo?",
+          style: GoogleFonts.inter(color: Colors.grey[700]),
+        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), // Rounded corners for dialog
         actions: [
-          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Delete')),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.inter(color: Colors.grey[700]),
+            ),
+          ),
+          ElevatedButton( // Use ElevatedButton for the destructive action
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.redAccent, // Red for delete action
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: Text(
+              'Delete',
+              style: GoogleFonts.inter(fontWeight: FontWeight.bold),
+            ),
+          ),
         ],
       ),
     );
+
     if (confirm == true) {
-      await widget.onDelete(_currentIndex);
-      setState(() {
-        _photos.removeAt(_currentIndex);
-        if (_currentIndex >= _photos.length) {
-          _currentIndex = max(0, _photos.length - 1);
+      // Call the onDelete callback to update the parent's list
+      widget.onDelete(_currentIndex);
+
+      // Handle navigation after deletion
+      if (widget.imagePaths.isEmpty) { // If no images left after deletion
+        Navigator.of(context).pop(true); // Pop back to gallery screen
+      } else {
+        // If there are still images, adjust current index and page controller
+        if (_currentIndex >= widget.imagePaths.length) {
+          // If the last image was deleted, go to the new last image
+          _currentIndex = widget.imagePaths.length - 1;
         }
-        _pageController = PageController(initialPage: _currentIndex);
-      });
-      if (_photos.isEmpty) {
-        // ignore: use_build_context_synchronously
-        Navigator.of(context).pop(true); // Tell parent to reload gallery
+        // Jump to the new page. Using jumpToPage is immediate.
+        // If you want animation, use animateToPage with a short duration.
+        _pageController.jumpToPage(_currentIndex);
+        setState(() {}); // Update the UI (e.g., title "X of Y")
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_photos.isEmpty) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Photo')),
-        body: const Center(child: Text('No photos left')),
-      );
-    }
     return Scaffold(
       appBar: AppBar(
-        title: Text('Photo ${_currentIndex + 1} of ${_photos.length}'),
+        title: Text(
+          'Photo ${_currentIndex + 1} of ${widget.imagePaths.length}',
+          style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 18),
+        ),
         backgroundColor: Colors.black,
         iconTheme: const IconThemeData(color: Colors.white),
         foregroundColor: Colors.white,
@@ -281,35 +221,32 @@ class _FullScreenPhotoScreenState extends State<FullScreenPhotoScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.delete, color: Colors.red),
-            onPressed: _deleteCurrentPhoto,
+            onPressed: widget.imagePaths.isEmpty ? null : _deleteCurrentPhoto, // Disable if no photos
           ),
         ],
       ),
-      backgroundColor: Colors.black,
-      body: PageView.builder(
-        controller: _pageController,
-        itemCount: _photos.length,
-        onPageChanged: (index) => setState(() => _currentIndex = index),
-        itemBuilder: (context, index) {
-          final asset = _photos[index];
-          return FutureBuilder<Uint8List?>(
-            future: asset.originBytes,
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.done && snapshot.hasData && snapshot.data != null) {
+      backgroundColor: Colors.black, // Black background for full-screen photos
+      body: widget.imagePaths.isEmpty
+          ? Center(
+              child: Text(
+                "No photos to display",
+                style: GoogleFonts.inter(color: Colors.white, fontSize: 18),
+              ),
+            )
+          : PageView.builder(
+              controller: _pageController,
+              itemCount: widget.imagePaths.length,
+              onPageChanged: (index) => setState(() => _currentIndex = index),
+              itemBuilder: (context, index) {
+                final imagePath = widget.imagePaths[index];
                 return Center(
-                  child: InteractiveViewer(
-                    child: Image.memory(snapshot.data!, fit: BoxFit.contain),
+                  child: Image.file(
+                    File(imagePath),
+                    fit: BoxFit.contain, // Ensures the entire image is visible, no cropping
                   ),
                 );
-              } else if (snapshot.hasError) {
-                return const Center(child: Text('Failed to load image', style: TextStyle(color: Colors.white)));
-              } else {
-                return const Center(child: CircularProgressIndicator());
-              }
-            },
-          );
-        },
-      ),
+              },
+            ),
     );
   }
 }

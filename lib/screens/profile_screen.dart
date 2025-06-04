@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_fonts/google_fonts.dart'; // Import GoogleFonts for consistent typography
 import 'change_password_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -12,94 +13,71 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  final _nameController = TextEditingController();
-  bool _editingName = false;
-  bool _loading = false;
+  String _displayName = 'Your Name'; // Holds the user's display name
+  // ignore: prefer_final_fields
+  bool _loading = false; // Kept for potential future use or other loading states
 
   @override
   void initState() {
     super.initState();
+    _loadUserData();
+  }
+
+  void _loadUserData() {
     final user = FirebaseAuth.instance.currentUser;
-    _nameController.text = user?.displayName ?? '';
+    setState(() {
+      _displayName = user?.displayName ?? 'Guest User'; // Set display name from Firebase, default to 'Guest User'
+    });
   }
 
   @override
   void dispose() {
-    _nameController.dispose();
+    // No TextEditingController to dispose for the name field anymore
     super.dispose();
   }
 
-  Future<void> _saveName() async {
-    final user = FirebaseAuth.instance.currentUser;
-    final newName = _nameController.text.trim();
-
-    if (user != null && newName.isNotEmpty) {
-      setState(() => _loading = true);
-      try {
-        await user.updateDisplayName(newName);
-        await user.reload();
-        setState(() => _editingName = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Name updated successfully!')),
-        );
-      } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to update name: ${e.toString()}')),
-        );
-      } finally {
-        setState(() => _loading = false);
-      }
-    }
-  }
+  // _saveName method removed as name editing is no longer an option
 
   Widget _buildProfileHeader() {
+    final user = FirebaseAuth.instance.currentUser;
+    final userEmail = user?.email ?? 'N/A';
+
     return Column(
       children: [
-        const CircleAvatar(
+        CircleAvatar(
           radius: 60,
-          backgroundColor: Colors.blueGrey,
+          backgroundColor: const Color(0xFF007AFF), // Use primary blue color
           child: Icon(Icons.person, size: 50, color: Colors.white),
         ),
         const SizedBox(height: 24),
-        _editingName
-            ? Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 40),
-                child: TextField(
-                  controller: _nameController,
-                  textAlign: TextAlign.center,
-                  decoration: InputDecoration(
-                    hintText: 'Enter your full name',
-                    suffixIcon: IconButton(
-                      icon: const Icon(Icons.check, color: Colors.green),
-                      onPressed: _saveName,
-                    ),
-                    border: const UnderlineInputBorder(),
-                  ),
-                ),
-              )
-            : Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    _nameController.text.isNotEmpty
-                        ? _nameController.text
-                        : 'Your Name',
-                    style: const TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.edit_outlined, size: 20),
-                    onPressed: () => setState(() => _editingName = true),
-                  ),
-                ],
-              ),
+        // Display name directly without editing functionality
+        Text(
+          _displayName,
+          style: GoogleFonts.inter(
+            fontSize: 24,
+            fontWeight: FontWeight.w600,
+            color: Colors.black87,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 4),
+        Text(
+          userEmail,
+          style: GoogleFonts.inter(
+            fontSize: 16,
+            color: Colors.grey[600],
+          ),
+        ),
         const SizedBox(height: 8),
-        if (_loading)
-          const LinearProgressIndicator(
-            minHeight: 2,
-            backgroundColor: Colors.transparent,
+        // Removed the edit icon as editing is no longer an option
+        if (_loading) // Show linear progress indicator if _loading is true
+          const Padding(
+            padding: EdgeInsets.only(top: 16),
+            child: LinearProgressIndicator(
+              minHeight: 3,
+              backgroundColor: Colors.transparent,
+              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF007AFF)),
+            ),
           ),
       ],
     );
@@ -107,8 +85,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _buildActionCard() {
     return Card(
-      margin: const EdgeInsets.symmetric(vertical: 16),
-      elevation: 2,
+      margin: const EdgeInsets.symmetric(vertical: 24), // Increased vertical margin
+      elevation: 4, // More pronounced shadow
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
         side: BorderSide(color: Colors.grey.shade200, width: 1),
@@ -116,19 +94,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Column(
         children: [
           ListTile(
-            leading: const Icon(Icons.lock_reset),
-            title: const Text('Change Password'),
-            trailing: const Icon(Icons.chevron_right),
+            leading: const Icon(Icons.lock_reset, color: Color(0xFF007AFF)), // Primary blue icon
+            title: Text(
+              'Change Password',
+              style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w500),
+            ),
+            trailing: const Icon(Icons.chevron_right, color: Colors.grey),
             onTap: () => Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const ChangePasswordScreen()),
             ),
           ),
-          const Divider(height: 0),
+          const Divider(height: 0, indent: 16, endIndent: 16), // Divider with indents
           ListTile(
-            leading: const Icon(Icons.info_outline),
-            title: const Text('About Hue AR'),
-            trailing: const Icon(Icons.chevron_right),
+            leading: const Icon(Icons.info_outline, color: Color(0xFF007AFF)), // Primary blue icon
+            title: Text(
+              'About HueAR',
+              style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w500),
+            ),
+            trailing: const Icon(Icons.chevron_right, color: Colors.grey),
             onTap: () => _showAboutDialog(context),
           ),
         ],
@@ -140,30 +124,47 @@ class _ProfileScreenState extends State<ProfileScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('About Hue AR', textAlign: TextAlign.center),
+        title: Text(
+          'About HueAR',
+          textAlign: TextAlign.center,
+          style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: Colors.black87),
+        ),
         content: SingleChildScrollView(
           child: Text(
-            'HueAR - See the World in True Color\n\n'
-            'An Augmented Reality app that assists individuals with color blindness '
-            'by adjusting and labeling colors in real time through your camera. '
-            'Features include color identification, correction filters, and '
-            'enhanced contrast for better color distinction.',
-            style: TextStyle(
+            'HueAR - Experience Colors Without Limits\n\n'
+            'HueAR is an accessibility app designed to assist individuals with color vision deficiencies. '
+            'Using advanced computer vision, it identifies and announces colors in real-time through your device\'s camera.\n\n'
+            'Key Features:\n'
+            '• Real-time color detection using camera\n'
+            '• Precise color naming with HEX/RGB values\n'
+            '• Gallery to store captured color photos\n'
+            '• Customizable modes for different color vision needs\n\n'
+            'The app helps with daily tasks like selecting clothing, interpreting signals, '
+            'and understanding colorful environments by making colors accessible and identifiable.',
+            style: GoogleFonts.inter(
               height: 1.4,
               color: Colors.grey.shade700,
+              fontSize: 14,
             ),
-            textAlign: TextAlign.center,
+            textAlign: TextAlign.start,
           ),
         ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)), // Rounded corners for dialog
         actions: [
           Center(
-            child: TextButton(
-              style: TextButton.styleFrom(
-                foregroundColor: Colors.blue,
-                padding: const EdgeInsets.symmetric(horizontal: 32),
+            child: ElevatedButton( // Use ElevatedButton for a more prominent "Close" button
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF007AFF), // Primary blue
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                elevation: 3,
               ),
               onPressed: () => Navigator.pop(context),
-              child: const Text('Close'),
+              child: Text(
+                'Close',
+                style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
             ),
           ),
         ],
@@ -175,13 +176,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Profile Settings'),
+        title: Text(
+          'Profile Settings',
+          style: GoogleFonts.inter(
+            color: Colors.black,
+            fontWeight: FontWeight.bold,
+            fontSize: 22,
+          ),
+        ),
         centerTitle: true,
-        elevation: 0,
+        backgroundColor: Colors.white,
+        elevation: 2, // Consistent subtle shadow
+        iconTheme: const IconThemeData(color: Colors.black), // Ensure back button is black
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center, // Center content horizontally
           children: [
             _buildProfileHeader(),
             _buildActionCard(),

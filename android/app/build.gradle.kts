@@ -6,9 +6,9 @@ plugins {
 }
 
 android {
-    namespace = "com.example.huear_fixed"
-    compileSdk = 35
     ndkVersion = "27.0.12077973"
+    namespace = "com.example.huear_fixed"
+    compileSdk = flutter.compileSdkVersion
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
@@ -20,11 +20,9 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "com.example.huear_fixed"
-        minSdk = 23
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
+        // minSdk is set to 26, which is suitable for Google ML Kit Object Detection.
+        minSdk = 26
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
@@ -37,8 +35,24 @@ android {
             signingConfig = signingConfigs.getByName("debug")
         }
     }
+
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+dependencies {
+    // Corrected Google ML Kit Object Detection dependency with Kotlin DSL syntax
+    implementation("com.google.mlkit:object-detection:17.0.1")
+
+    // IMPORTANT: If you had other dependencies in this block, you need to add them back here
+    // using the correct Kotlin DSL syntax: implementation("group:artifact:version")
+    // Example:
+    // implementation("androidx.core:core-ktx:1.10.1")
+    // implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.0")
 }
 
 flutter {
-    source = "../.."
+    source = "../../"
 }

@@ -31,11 +31,18 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
         useMaterial3: true,
       ),
-      initialRoute: isLoggedIn ? '/home' : '/login',
+      // If logged in, go to HomeScreen (which will show the splash first).
+      // Otherwise, go to the LoginScreen.
+      home: isLoggedIn
+          ? const HomeScreen() // Removed 'startDirectlyToMain: true'
+          : const LoginScreen(),
       routes: {
+        // Note: '/login' and '/home' are primarily handled by the 'home' property for initial app launch.
+        // However, defining them here still allows for named navigation if needed from other parts of the app
+        // (e.g., Navigator.pushNamed(context, '/register')).
         '/login': (context) => const LoginScreen(),
         '/register': (context) => const RegisterScreen(),
-        '/home': (context) => const HomeScreen(),
+        '/home': (context) => const HomeScreen(), // Ensure this also creates HomeScreen without the flag
         '/forgot-password': (context) => const ForgotPasswordScreen(),
       },
     );
